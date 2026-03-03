@@ -1,0 +1,337 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://claude-baton.ai/schemas/hooks-v1.json",
+  "title": "Claude_Baton Hooks Configuration Schema",
+  "description": "Defines event hooks for the Claude_Baton AI agent system. Hooks allow plugins to react to or modify agent behavior at specific lifecycle points.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "const": "https://claude-baton.ai/schemas/hooks-v1.json"
+    },
+    "version": {
+      "type": "string",
+      "const": "1.0",
+      "description": "Schema version"
+    },
+    "hooks": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "$ref": "#/$defs/hookHandler"
+        },
+        "minItems": 1
+      },
+      "description": "Hook configurations keyed by event name"
+    }
+  },
+  "required": ["hooks"],
+  "additionalProperties": false,
+  "$defs": {
+    "hookName": {
+      "type": "string",
+      "description": "Hook event name following the pattern: (pre|post|on):action[:subaction]",
+      "oneOf": [
+        {
+          "const": "pre:tool:call",
+          "description": "Before a tool is called. Can modify parameters or cancel the call."
+        },
+        {
+          "const": "post:tool:call",
+          "description": "After a tool returns. Can modify the result."
+        },
+        {
+          "const": "pre:generation",
+          "description": "Before the AI generates a response."
+        },
+        {
+          "const": "post:generation",
+          "description": "After the AI generates a response. Can modify the output."
+        },
+        {
+          "const": "on:error",
+          "description": "When an error occurs. Can handle or transform errors."
+        },
+        {
+          "const": "on:context:overflow",
+          "description": "When context window exceeds limits. Can trim or summarize context."
+        },
+        {
+          "const": "pre:skill:activate",
+          "description": "Before a skill is activated."
+        },
+        {
+          "const": "post:skill:activate",
+          "description": "After a skill is activated."
+        },
+        {
+          "const": "pre:artifact:save",
+          "description": "Before an artifact is saved."
+        },
+        {
+          "const": "post:artifact:save",
+          "description": "After an artifact is saved."
+        },
+        {
+          "const": "on:artifact:reference",
+          "description": "When an artifact is referenced in conversation."
+        },
+        {
+          "const": "pre:mcp:connect",
+          "description": "Before connecting to an MCP server."
+        },
+        {
+          "const": "post:mcp:connect",
+          "description": "After connecting to an MCP server."
+        },
+        {
+          "const": "on:plugin:load",
+          "description": "When a plugin is loaded."
+        },
+        {
+          "const": "on:plugin:unload",
+          "description": "When a plugin is unloaded."
+        },
+        {
+          "type": "string",
+          "pattern": "^custom:[a-z][a-z0-9-]*$",
+          "description": "Custom hook event (plugin-defined)"
+        }
+      ]
+    },
+    "hookHandler": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique handler identifier for debugging and management"
+        },
+        "handler": {
+          "type": "string",
+          "description": "Handler function path (relative to plugin root) or inline code"
+        },
+        "priority": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000,
+          "default": 500,
+          "description": "Execution order (lower = earlier). Pre-hooks: 0-999, Post-hooks: sorted ascending"
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether this hook is active"
+        },
+        "async": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether the hook runs asynchronously (non-blocking)"
+        },
+        "timeout": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 60000,
+          "default": 5000,
+          "description": "Timeout in milliseconds"
+        },
+        "condition": {
+          "$ref": "#/$defs/hookCondition",
+          "description": "Conditional execution rules"
+        },
+        "filter": {
+          "type": "object",
+          "description": "Filter to limit when hook fires",
+          "properties": {
+            "tools": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Only fire for these tool names"
+            },
+            "skills": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Only fire for these skill names"
+            },
+            "mimeTypes": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Only fire for these MIME types"
+            },
+            "pattern": {
+              "type": "string",
+              "description": "Regex pattern to match against relevant data"
+            }
+          }
+        },
+        "actions": {
+          "type": "object",
+          "properties": {
+            "modify": {
+              "type": "boolean",
+              "default": false,
+              "description": "Handler can modify the data"
+            },
+            "cancel": {
+              "type": "boolean",
+              "default": false,
+              "description": "Handler can cancel the operation"
+            },
+            "retry": {
+              "type": "boolean",
+              "default": false,
+              "description": "Handler can request a retry"
+            }
+          },
+          "description": "Declared actions the handler may perform"
+        },
+        "onError": {
+          "type": "string",
+          "enum": ["ignore", "warn", "throw", "fallback"],
+          "default": "warn",
+          "description": "How to handle errors in this hook"
+        },
+        "fallback": {
+          "type": "string",
+          "description": "Fallback handler path if main handler fails"
+        }
+      },
+      "required": ["handler"],
+      "additionalProperties": false
+    },
+    "hookCondition": {
+      "type": "object",
+      "properties": {
+        "all": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/hookCondition"
+          },
+          "description": "All conditions must be true (AND)"
+        },
+        "any": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/hookCondition"
+          },
+          "description": "Any condition must be true (OR)"
+        },
+        "not": {
+          "$ref": "#/$defs/hookCondition",
+          "description": "Negate the condition"
+        },
+        "equals": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Field equals value"
+        },
+        "matches": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Field matches regex pattern"
+        },
+        "exists": {
+          "type": "string",
+          "description": "Field exists and is not null"
+        },
+        "expression": {
+          "type": "string",
+          "description": "Custom expression (e.g., JSONPath or JMESPath)"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Conditional execution logic"
+    },
+    "hookContext": {
+      "type": "object",
+      "properties": {
+        "event": {
+          "type": "string",
+          "description": "The hook event name"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the event occurred"
+        },
+        "pluginId": {
+          "type": "string",
+          "description": "ID of the plugin that registered the hook"
+        },
+        "sessionId": {
+          "type": "string",
+          "description": "Current session ID"
+        },
+        "data": {
+          "type": "object",
+          "description": "Event-specific data"
+        }
+      },
+      "description": "Context passed to hook handlers"
+    }
+  },
+  "examples": [
+    {
+      "$schema": "https://claude-baton.ai/schemas/hooks-v1.json",
+      "version": "1.0",
+      "hooks": {
+        "pre:tool:call": [
+          {
+            "id": "enrich-context",
+            "handler": "hooks/enrichContext.ts",
+            "priority": 10,
+            "filter": {
+              "tools": ["search", "query"]
+            },
+            "async": false,
+            "actions": {
+              "modify": true
+            }
+          }
+        ],
+        "post:generation": [
+          {
+            "id": "store-memory",
+            "handler": "hooks/storeMemory.ts",
+            "priority": 100,
+            "async": true,
+            "timeout": 10000
+          }
+        ],
+        "on:error": [
+          {
+            "id": "error-handler",
+            "handler": "hooks/handleError.ts",
+            "condition": {
+              "equals": {
+                "errorType": "ToolExecutionError"
+              }
+            },
+            "actions": {
+              "retry": true
+            },
+            "onError": "ignore"
+          }
+        ],
+        "on:context:overflow": [
+          {
+            "id": "summarize-context",
+            "handler": "hooks/summarizeContext.ts",
+            "priority": 50,
+            "actions": {
+              "modify": true
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
