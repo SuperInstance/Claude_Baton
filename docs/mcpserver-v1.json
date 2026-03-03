@@ -1,0 +1,334 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://claude-baton.ai/schemas/mcp-server-v1.json",
+  "title": "Claude_Baton MCP Server Configuration Schema",
+  "description": "Defines MCP (Model Context Protocol) server configurations for the Claude_Baton AI agent system. Used in .mcp.json files and plugin manifests.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "const": "https://claude-baton.ai/schemas/mcp-server-v1.json"
+    },
+    "version": {
+      "type": "string",
+      "const": "1.0",
+      "description": "Schema version"
+    },
+    "mcpServers": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/mcpServerConfig"
+      },
+      "minProperties": 1,
+      "description": "MCP server configurations keyed by server name"
+    }
+  },
+  "required": ["mcpServers"],
+  "additionalProperties": false,
+  "$defs": {
+    "mcpServerConfig": {
+      "type": "object",
+      "properties": {
+        "description": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Human-readable description of the MCP server"
+        },
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether this server is disabled"
+        },
+        "autoStart": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to auto-start the server when needed"
+        },
+        "restartOnFailure": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to restart the server on failure"
+        },
+        "maxRestarts": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10,
+          "default": 3,
+          "description": "Maximum restart attempts before giving up"
+        },
+        "timeout": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 300000,
+          "default": 30000,
+          "description": "Connection timeout in milliseconds"
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Tools exposed by this server (auto-discovered if not specified)"
+        },
+        "resources": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Resources exposed by this server"
+        },
+        "prompts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Prompts exposed by this server"
+        },
+        "transport": {
+          "type": "string",
+          "enum": ["stdio", "sse", "websocket", "http"],
+          "description": "Transport type"
+        },
+        "command": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Command to start the MCP server (for stdio transport)"
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Command-line arguments (for stdio transport)"
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Environment variables. Use ${VAR_NAME} for substitution."
+        },
+        "cwd": {
+          "type": "string",
+          "description": "Working directory for the server process"
+        },
+        "shell": {
+          "type": "boolean",
+          "default": false,
+          "description": "Run command in shell"
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "MCP server URL (for remote transports)"
+        },
+        "headers": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "HTTP headers for requests"
+        },
+        "retryCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10,
+          "default": 3,
+          "description": "Number of connection retries"
+        },
+        "retryDelay": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 30000,
+          "default": 1000,
+          "description": "Delay between retries in milliseconds"
+        },
+        "pingInterval": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 60000,
+          "default": 30000,
+          "description": "Ping interval in milliseconds (for WebSocket)"
+        },
+        "auth": {
+          "$ref": "#/$defs/authConfig",
+          "description": "Authentication configuration"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "transport": { "const": "stdio" }
+            },
+            "required": ["transport"]
+          },
+          "then": {
+            "required": ["command"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "transport": { "enum": ["sse", "websocket", "http"] }
+            },
+            "required": ["transport"]
+          },
+          "then": {
+            "required": ["url"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "transport": { "const": "websocket" }
+            },
+            "required": ["transport"]
+          },
+          "then": {
+            "properties": {
+              "url": {
+                "type": "string",
+                "pattern": "^wss?://"
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false,
+      "description": "MCP server configuration (local or remote)"
+    },
+    "authConfig": {
+      "type": "object",
+      "oneOf": [
+        {
+          "properties": {
+            "type": {
+              "const": "bearer"
+            },
+            "token": {
+              "type": "string",
+              "description": "Bearer token or ${ENV_VAR} reference"
+            }
+          },
+          "required": ["type", "token"],
+          "additionalProperties": false,
+          "title": "Bearer Token Auth"
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "basic"
+            },
+            "username": {
+              "type": "string"
+            },
+            "password": {
+              "type": "string",
+              "description": "Password or ${ENV_VAR} reference"
+            }
+          },
+          "required": ["type", "username", "password"],
+          "additionalProperties": false,
+          "title": "Basic Auth"
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "api-key"
+            },
+            "header": {
+              "type": "string",
+              "default": "X-API-Key"
+            },
+            "key": {
+              "type": "string",
+              "description": "API key or ${ENV_VAR} reference"
+            }
+          },
+          "required": ["type", "key"],
+          "additionalProperties": false,
+          "title": "API Key Auth"
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "oauth2"
+            },
+            "clientId": {
+              "type": "string"
+            },
+            "clientSecret": {
+              "type": "string",
+              "description": "${ENV_VAR} reference recommended"
+            },
+            "tokenUrl": {
+              "type": "string",
+              "format": "uri"
+            },
+            "scopes": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": ["type", "clientId", "clientSecret", "tokenUrl"],
+          "additionalProperties": false,
+          "title": "OAuth2 Client Credentials"
+        }
+      ],
+      "description": "Authentication configuration for remote servers"
+    },
+    "serverName": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*[a-z0-9]$",
+      "minLength": 2,
+      "maxLength": 64,
+      "description": "Unique server name (kebab-case)"
+    }
+  },
+  "examples": [
+    {
+      "$schema": "https://claude-baton.ai/schemas/mcp-server-v1.json",
+      "version": "1.0",
+      "mcpServers": {
+        "filesystem": {
+          "description": "Local filesystem access",
+          "transport": "stdio",
+          "command": "npx",
+          "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home/user/projects"],
+          "env": {
+            "ALLOWED_DIRECTORIES": "/home/user/projects"
+          }
+        },
+        "baton-rag": {
+          "description": "Semantic memory and retrieval",
+          "transport": "stdio",
+          "command": "python",
+          "args": ["-m", "baton_rag.server"],
+          "env": {
+            "DATABASE_URL": "${BATON_DB_URL}",
+            "OPENAI_API_KEY": "${OPENAI_API_KEY}"
+          },
+          "cwd": "./baton-rag",
+          "timeout": 60000
+        },
+        "remote-tools": {
+          "description": "Remote tool server",
+          "transport": "sse",
+          "url": "https://tools.example.com/mcp",
+          "headers": {
+            "X-Custom-Header": "value"
+          }
+        },
+        "websockets": {
+          "description": "WebSocket-based server",
+          "transport": "websocket",
+          "url": "wss://ws.example.com/mcp",
+          "pingInterval": 30000
+        }
+      }
+    }
+  ]
+}
